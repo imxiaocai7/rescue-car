@@ -1,4 +1,5 @@
 #include "motion_protocol.h"
+#include "motion_command_guard.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -73,11 +74,38 @@ static void test_sequence_and_watchdog_wrap(void) {
     assert(motion_lease_expired(0U, 0U, 0U));
 }
 
+static void test_command_guard_rejects_replay_and_stops_on_expiry(void) {
+    motion_command_guard_t guard;
+    motion_command_t command = {
+        0xFFFFFFFFUL, 20U, 120, 120, MOTION_ACTUATOR_OPEN
+    };
+    motion_command_t output;
+    motion_command_guard_init(&guard);
+    assert(!motion_command_guard_get(&guard, 0U, &output));
+    assert(output.left_mm_s == 0 && output.right_mm_s == 0);
+
+    assert(motion_command_guard_accept(&guard, &command, 0xFFFFFFF0UL));
+    assert(motion_command_guard_get(&guard, 0xFFFFFFF9UL, &output));
+    assert(output.left_mm_s == 120 && output.right_mm_s == 120);
+    assert(!motion_command_guard_accept(&guard, &command, 0xFFFFFFFAUL));
+
+    command.sequence = 0U;  /* Valid wrap after UINT32_MAX. */
+    command.lease_ms = 10U;
+    assert(motion_command_guard_accept(&guard, &command, 0xFFFFFFFAUL));
+    assert(motion_command_guard_get(&guard, 3U, &output));
+    assert(!motion_command_guard_get(&guard, 4U, &output));
+    assert(output.sequence == 0U);
+    assert(output.lease_ms == 0U);
+    assert(output.left_mm_s == 0 && output.right_mm_s == 0);
+    assert(output.actuator == MOTION_ACTUATOR_HOLD);
+}
+
 int main(void) {
     test_crc_check_value();
     test_fragmented_command();
     test_noise_bad_crc_and_recovery();
     test_sequence_and_watchdog_wrap();
+    test_command_guard_rejects_replay_and_stops_on_expiry();
     puts("motion_protocol_test: all tests passed");
     return 0;
 }

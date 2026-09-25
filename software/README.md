@@ -35,7 +35,7 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 电脑规划端到 ESP32-S3/STM32 的速度命令帧和失联租约约定见 [`MOTION_PROTOCOL.md`](MOTION_PROTOCOL.md)，编解码与序号/超时工具见 [`pc/motion_protocol.py`](pc/motion_protocol.py)。这是待固件实现的协议契约，尚未在 ESP32、STM32 实物上联调。
 
-STM32 可复用的 HAL 无关 C 解码器位于 [`stm32/include/motion_protocol.h`](stm32/include/motion_protocol.h) 与 [`stm32/src/motion_protocol.c`](stm32/src/motion_protocol.c)。在仓库根目录可用 `gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/tests/motion_protocol_test.c -o "$env:TEMP\motion_protocol_test.exe"; & "$env:TEMP\motion_protocol_test.exe"` 做本机编译测试。它只解析帧并提供序号/租约判断，尚不连接 UART、PWM、编码器或舵机。
+STM32 可复用的 HAL 无关 C 解码器和序号/租约命令门控位于 [`stm32/include/motion_protocol.h`](stm32/include/motion_protocol.h)、[`stm32/src/motion_protocol.c`](stm32/src/motion_protocol.c) 与 [`stm32/include/motion_command_guard.h`](stm32/include/motion_command_guard.h)、[`stm32/src/motion_command_guard.c`](stm32/src/motion_command_guard.c)。在仓库根目录可用 `gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/motion_command_guard.c software/tests/motion_protocol_test.c -o "$env:TEMP\motion_protocol_test.exe"; & "$env:TEMP\motion_protocol_test.exe"` 做本机编译测试。租约超时门控输出零轮速与 HOLD；仍未连接 UART、PWM、编码器或舵机。
 
 像素检测框投影到机器人地面坐标见 [`pc/pixel_ground.py`](pc/pixel_ground.py)：四个地面标定点求平面单应矩阵，检测框底边中心作为落地点，再按差速里程计位姿变换到场地坐标。标定坐标按机器人 x 前、y 左、角度逆时针；相机必须固定，标定点和被投影点需在同一平面。四点投影只是几何初值，镜头畸变和安装变化需靠实测验证，未标定前不可用于自主运动。
 
