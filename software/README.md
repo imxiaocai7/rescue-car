@@ -1,10 +1,10 @@
 # 第一阶段软件：相机图像帧协议
 
-这部分只处理图像，不会向电机或舵机发命令。当前已完成电脑端帧编解码、坏帧重同步和测试；OpenMV 端采集脚本已写好，但**尚未在实物上运行验证**。ESP32 接收/转发程序将在确定开发环境、板卡引脚和实际串口吞吐后接入。
+这部分只处理图像，不会向电机或舵机发命令。电脑端帧编解码、坏帧重同步、OpenMV 采集脚本、ESP32-S3 网关和预览程序已写好，但整条链路**尚未在实物上运行验证**。
 
 ## 数据流
 
-ESP32 向 OpenMV UART3 发送单字节 `R`，OpenMV 才采集并发送一帧。ESP32 收齐、校验并转发后，才发送下一个 `R`；处理不过来时不请求新帧。ESP32 将原始帧数据不修改地写入电脑 TCP 连接（端口 5000）。电脑端按以下小端格式解析：
+ESP32 向 OpenMV UART3 发送单字节 `R`，OpenMV 才采集并发送一帧。ESP32 收齐、校验后，把原始帧数据不修改地写入电脑 TCP 连接（端口 5000）；电脑处理并显示后，回发帧号确认。ESP32 收到匹配确认才请求下一帧，视觉推理自然形成背压。电脑端按以下小端格式解析：
 
 | 字段 | 字节数 | 值 |
 |---|---:|---|
@@ -19,16 +19,23 @@ ESP32 向 OpenMV UART3 发送单字节 `R`，OpenMV 才采集并发送一帧。E
 
 ESP32-S3 网关代码及连线、构建说明见 [`esp32/README.md`](esp32/README.md)。当前网关按照片中的 ESP32-S3-N16R8 配置，启动 Wi-Fi AP `RescueBot-S3`，TCP 服务为 `192.168.4.1:5000`；不包含 STM32 电机控制。
 
+TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该帧后再确认。网关收到匹配确认才向 OpenMV 请求下一帧，因而 YOLO 推理速度会自然限制相机输出，降低控制使用陈旧图像的风险。
+
+电脑端实时预览及可选 YOLO 推理见 [`pc/view_camera.py`](pc/view_camera.py)。没有训练权重时可只看预览和采集 JPEG；加载权重后才显示模型检测框。当前仓库没有救援类别训练集或权重，因此不应把通用模型检测结果用于自主决策。
+
 在本目录运行电脑端测试：
 
 ```powershell
 python -m unittest discover -s pc -p "test_*.py" -v
 ```
 
-ESP32 端准备好并能作为 TCP 服务器后，在本目录运行：
+在仓库根目录启动实时预览（首次先安装 OpenCV）：
 
 ```powershell
-python pc/receive_camera.py <ESP32的IP> --port 5000
+python -m pip install -r software/pc/requirements-vision.txt
+python software/pc/view_camera.py 192.168.4.1 --save-dir dataset/camera_raw
 ```
 
-代码尚未在实物上运行验证。先分别通过 USB 对 OpenMV 和 ESP32 做 115200 bit/s 文本收发，再共地、交叉连接 P4→GPIO16、P5←GPIO15。只有文本和短二进制包稳定后，才在 OpenMV IDE 中运行脚本，并检查帧率、每帧字节数、丢帧和两板温升。相机脚本的 CRC32 是兼容性优先的纯 Python 实现；如果耗时明显，可在实物上换成 OpenMV 固件提供的硬件/本地 CRC 接口。
+按 `S` 可将当前 JPEG 存入指定目录；没有训练权重时只预览/采集，不会产生目标类别判断。准备好符合比赛实物的标注数据和 YOLO 权重后，再安装 `python -m pip install -r software/pc/requirements-yolo.txt` 并运行 `python software/pc/view_camera.py 192.168.4.1 --model runs/detect/train/weights/best.pt --device 0`。不可用通用 COCO 权重替代救援类别权重，也不要将未验证的检测框接入运动控制。
+
+硬件联调时先分别通过 USB 对 OpenMV 和 ESP32 做 115200 bit/s 文本收发，再共地、交叉连接 P4→GPIO16、P5←GPIO15。只有文本和短二进制包稳定后，才在 OpenMV IDE 中运行脚本，并检查帧率、每帧字节数、丢帧和两板温升。相机脚本的 CRC32 是兼容性优先的纯 Python 实现；如果耗时明显，可在实物上换成 OpenMV 固件提供的硬件/本地 CRC 接口。

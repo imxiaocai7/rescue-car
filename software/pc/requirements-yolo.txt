@@ -1,0 +1,2 @@
+-r requirements-vision.txt
+ultralytics>=8.3

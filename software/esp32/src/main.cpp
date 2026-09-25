@@ -14,12 +14,14 @@ constexpr size_t kMaxJpegSize = 120000;
 constexpr uint16_t kMaxImageSide = 2048;
 constexpr uint32_t kUartInterByteTimeoutMs = 1500;
 constexpr uint32_t kTcpWriteTimeoutMs = 3000;
+constexpr uint32_t kTcpAckTimeoutMs = 15000;
 
 constexpr char kApSsid[] = "RescueBot-S3";
 constexpr char kApPassword[] = "rescue123";
 constexpr uint8_t kApChannel = 6;
 
 constexpr uint8_t kMagic[4] = {'R', 'S', 'V', '1'};
+constexpr uint8_t kAckMagic[4] = {'A', 'C', 'K', '1'};
 constexpr uint8_t kVersion = 1;
 constexpr uint8_t kJpegKind = 1;
 
@@ -185,6 +187,29 @@ bool forwardFrame(WiFiClient &client, const FrameHeader &header) {
   return writeTcpExact(client, jpegBuffer, header.jpegSize);
 }
 
+bool waitForFrameAck(WiFiClient &client, uint32_t expectedSequence) {
+  uint8_t ack[8];
+  size_t received = 0;
+  const uint32_t startedAt = millis();
+  while (received < sizeof(ack)) {
+    if (!client.connected() || millis() - startedAt >= kTcpAckTimeoutMs) {
+      return false;
+    }
+    int available = client.available();
+    if (available > 0) {
+      size_t request = min(static_cast<size_t>(available), sizeof(ack) - received);
+      int count = client.read(ack + received, request);
+      if (count > 0) {
+        received += static_cast<size_t>(count);
+      }
+    } else {
+      delay(1);
+    }
+  }
+  return memcmp(ack, kAckMagic, sizeof(kAckMagic)) == 0 &&
+         readLe32(ack + 4) == expectedSequence;
+}
+
 void printNetworkInfo() {
   Serial.print("Wi-Fi AP: ");
   Serial.println(kApSsid);
@@ -260,6 +285,11 @@ void loop() {
     }
     if (!forwardFrame(client, header)) {
       Serial.println("TCP client disconnected or stopped reading");
+      break;
+    }
+    if (!waitForFrameAck(client, header.sequence)) {
+      Serial.printf("TCP ACK missing or invalid for frame #%lu\n",
+                    static_cast<unsigned long>(header.sequence));
       break;
     }
     Serial.printf("Forwarded frame #%lu (%ux%u, %lu bytes)\n",

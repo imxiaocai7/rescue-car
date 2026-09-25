@@ -4,6 +4,8 @@ from rescue_transport import (
     HEADER,
     ImageFrame,
     ImageFrameDecoder,
+    FRAME_ACK,
+    encode_frame_ack,
     encode_jpeg_frame,
 )
 
@@ -32,6 +34,16 @@ class ImageFrameProtocolTests(unittest.TestCase):
         decoder = ImageFrameDecoder()
         self.assertEqual(decoder.feed(damaged + encode_jpeg_frame(sample(2))), [sample(2)])
         self.assertEqual(decoder.bad_payloads, 1)
+
+    def test_frame_ack_contains_exact_sequence(self):
+        self.assertEqual(
+            FRAME_ACK.unpack(encode_frame_ack(0x12345678)),
+            (b"ACK1", 0x12345678),
+        )
+
+    def test_frame_ack_rejects_invalid_sequence(self):
+        with self.assertRaises(ValueError):
+            encode_frame_ack(0x1_0000_0000)
 
     def test_bad_size_then_recover(self):
         damaged = bytearray(encode_jpeg_frame(sample()))

@@ -18,6 +18,8 @@ MAGIC = b"RSV1"
 VERSION = 1
 KIND_JPEG = 1
 HEADER = struct.Struct("<4sBBIIHHII")
+ACK_MAGIC = b"ACK1"
+FRAME_ACK = struct.Struct("<4sI")
 MAX_JPEG_SIZE = 120_000
 MAX_IMAGE_SIDE = 2048
 
@@ -108,3 +110,10 @@ class ImageFrameDecoder:
             frames.append(ImageFrame(seq, ticks, width, height, jpeg))
             del self._buffer[:end]
         return frames
+
+
+def encode_frame_ack(sequence: int) -> bytes:
+    """Encode the PC's acknowledgement for a fully processed frame."""
+    if not 0 <= sequence <= 0xFFFFFFFF:
+        raise ValueError("invalid sequence")
+    return FRAME_ACK.pack(ACK_MAGIC, sequence)

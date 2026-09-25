@@ -27,7 +27,7 @@ ESP32 启动后创建 2.4 GHz Wi-Fi 热点：
 python software/pc/receive_camera.py 192.168.4.1 --port 5000
 ```
 
-每次电脑连入后，ESP32 才向 OpenMV 请求一帧。ESP32 在 PSRAM 暂存完整 JPEG、核对 IEEE CRC32 和 JPEG 首尾标志后，才把原始 26 字节头及图像发给电脑。电脑未读取完一帧时不会请求下一帧，因此不会主动排队积压图像。
+每次电脑连入后，ESP32 才向 OpenMV 请求一帧。ESP32 在 PSRAM 暂存完整 JPEG、核对 IEEE CRC32 和 JPEG 首尾标志后，才把原始 26 字节头及图像发给电脑。电脑完成解码/推理和显示后回传 8 字节 `ACK1 + seq(u32 little-endian)`；只有帧号匹配才请求 OpenMV 下一帧，超过 15 秒未确认会断开该客户端，避免视觉端落后时积压旧图。
 
 ## 构建与烧录
 

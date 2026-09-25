@@ -4,7 +4,7 @@ import argparse
 import socket
 import time
 
-from rescue_transport import ImageFrameDecoder
+from rescue_transport import ImageFrameDecoder, encode_frame_ack
 
 
 def main() -> None:
@@ -35,6 +35,7 @@ def main() -> None:
                     f"bad_payload={decoder.bad_payloads}",
                     flush=True,
                 )
+                connection.sendall(encode_frame_ack(frame.seq))
 
 
 if __name__ == "__main__":
