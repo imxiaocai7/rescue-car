@@ -17,6 +17,7 @@ class FollowerConfig:
     max_angular_speed_rad_s: float
     goal_tolerance_m: float = 0.05
     progress_search_points: int = 32
+    rotate_in_place_threshold_rad: float = math.radians(5.0)
 
     def __post_init__(self) -> None:
         values = (
@@ -24,13 +25,18 @@ class FollowerConfig:
             self.linear_speed_m_s,
             self.max_angular_speed_rad_s,
             self.goal_tolerance_m,
+            self.rotate_in_place_threshold_rad,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("follower parameters must be finite")
         if self.lookahead_m <= 0 or self.linear_speed_m_s <= 0:
             raise ValueError("lookahead and linear speed must be positive")
-        if self.max_angular_speed_rad_s <= 0 or self.goal_tolerance_m < 0:
-            raise ValueError("angular speed must be positive and tolerance nonnegative")
+        if (
+            self.max_angular_speed_rad_s <= 0
+            or self.goal_tolerance_m < 0
+            or not 0 < self.rotate_in_place_threshold_rad <= math.pi / 2
+        ):
+            raise ValueError("invalid angular speed, tolerance, or rotate threshold")
         if self.progress_search_points < 1:
             raise ValueError("progress_search_points must be positive")
 
@@ -108,9 +114,9 @@ class PurePursuitFollower:
         alpha = wrap_angle(target_heading - pose.yaw)
         max_angular = self.config.max_angular_speed_rad_s
 
-        # A forward-only base cannot reach a waypoint behind it by driving
-        # straight; rotate first, while retaining the robot's safe speed limit.
-        if abs(alpha) > math.pi / 2.0:
+        # Avoid translating through a large heading error: on a narrow grid
+        # corridor, a curved turn can leave the planned free-cell sequence.
+        if abs(alpha) > self.config.rotate_in_place_threshold_rad:
             return VelocityCommand(0.0, math.copysign(max_angular, alpha))
 
         curvature = 2.0 * math.sin(alpha) / target_distance
@@ -136,17 +142,31 @@ class PurePursuitFollower:
 
     def _lookahead_point(self) -> Point2D:
         accumulated = 0.0
+        previous_direction: Point2D | None = None
         for index in range(self._cursor, len(self._path) - 1):
             start = self._path[index]
             end = self._path[index + 1]
-            segment = math.hypot(end[0] - start[0], end[1] - start[1])
+            delta_x = end[0] - start[0]
+            delta_y = end[1] - start[1]
+            segment = math.hypot(delta_x, delta_y)
             if segment <= 1e-12:
                 continue
+            direction = (delta_x / segment, delta_y / segment)
+            if previous_direction is not None:
+                alignment = (
+                    previous_direction[0] * direction[0]
+                    + previous_direction[1] * direction[1]
+                )
+                if alignment < 1.0 - 1e-9 and accumulated <= self.config.lookahead_m:
+                    # Do not preview beyond a corner: doing so makes pure
+                    # pursuit cut inside the A* path around inflated obstacles.
+                    return start
             if accumulated + segment >= self.config.lookahead_m:
                 fraction = (self.config.lookahead_m - accumulated) / segment
                 return (
-                    start[0] + fraction * (end[0] - start[0]),
-                    start[1] + fraction * (end[1] - start[1]),
+                    start[0] + fraction * delta_x,
+                    start[1] + fraction * delta_y,
                 )
             accumulated += segment
+            previous_direction = direction
         return self._path[-1]

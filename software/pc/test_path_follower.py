@@ -35,10 +35,17 @@ class PathFollowerTests(unittest.TestCase):
 
     def test_bending_path_turns_toward_positive_y(self):
         follower = self.follower(lookahead_m=0.6)
-        follower.set_path([(0.0, 0.0), (0.5, 0.0), (0.7, 0.3)])
+        follower.set_path([(0.0, 0.0), (0.5, 0.5), (0.7, 0.8)])
         command = follower.update(Pose2D())
         self.assertGreater(command.angular_rad_s, 0.0)
         self.assertLessEqual(abs(command.angular_rad_s), 1.0)
+
+    def test_lookahead_does_not_preview_across_a_corner(self):
+        follower = self.follower(lookahead_m=0.75)
+        follower.set_path([(0.0, 0.0), (0.5, 0.0), (0.5, 0.5)])
+        command = follower.update(Pose2D())
+        self.assertAlmostEqual(command.angular_rad_s, 0.0)
+        self.assertGreater(command.linear_m_s, 0.0)
 
     def test_waypoint_behind_causes_in_place_turn(self):
         follower = self.follower()
@@ -47,6 +54,13 @@ class PathFollowerTests(unittest.TestCase):
         self.assertEqual(command.linear_m_s, 0.0)
         # At exactly 180 degrees either rotation direction is equally short.
         self.assertAlmostEqual(abs(command.angular_rad_s), 1.0)
+
+    def test_large_heading_error_rotates_before_translating(self):
+        follower = self.follower()
+        follower.set_path([(0.0, 0.0), (0.0, 1.0)])
+        command = follower.update(Pose2D())
+        self.assertEqual(command.linear_m_s, 0.0)
+        self.assertGreater(command.angular_rad_s, 0.0)
 
     def test_goal_tolerance_stops(self):
         follower = self.follower(goal_tolerance_m=0.1)
@@ -58,6 +72,7 @@ class PathFollowerTests(unittest.TestCase):
             lookahead_m=0.1,
             linear_speed_m_s=0.5,
             max_angular_speed_rad_s=0.2,
+            rotate_in_place_threshold_rad=math.radians(50.0),
         )
         follower.set_path([(0.0, 0.0), (0.1, 0.1), (0.0, 0.2)])
         command = follower.update(Pose2D())
