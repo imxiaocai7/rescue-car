@@ -1,0 +1,12 @@
+# Temporary document renders and extracted source files
+tmp/
+
+# Local tooling metadata
+.sentry-native/
+
+# Python bytecode
+**/__pycache__/
+*.py[cod]
+
+# Supplied open-source reference snapshot: keep locally, track project-specific work separately
+开源参考方案/
