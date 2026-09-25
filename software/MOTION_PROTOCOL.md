@@ -19,6 +19,8 @@ Every frame is 20 bytes, little-endian:
 
 The canonical Python encoder/stream decoder and watchdog helpers are in [`pc/motion_protocol.py`](pc/motion_protocol.py). CRC check value for ASCII `123456789` is `0x29B1`. Receivers must reject unsupported headers, invalid actuator values, nonzero reserved bytes, out-of-range leases, CRC failures, and replayed/out-of-order sequences. Sequence comparison uses the half-range rule so `0` follows `0xFFFFFFFF`.
 
+A HAL-independent C stream decoder, CRC implementation, sequence comparator, and lease watchdog are in [`stm32/include/motion_protocol.h`](stm32/include/motion_protocol.h) and [`stm32/src/motion_protocol.c`](stm32/src/motion_protocol.c). The native host test uses the same known command frame as the Python tests; this verifies byte-level compatibility, but is not an STM32 cross-build.
+
 The receiver must stop both wheels when a valid command's lease expires, on communication loss, or on an explicit upstream safety stop. It should not continue the last nonzero target indefinitely. `HOLD` leaves the gate where it is; safe startup gate position and gate open/closed angles must be established during physical commissioning. This lease is a motion watchdog, not an emergency-stop circuit.
 
 Wheel targets are signed velocities, not PWM duty values. STM32 firmware is responsible for closed-loop wheel-speed control using verified encoder direction/counts; these must not be guessed from product photos. The host-side path follower can convert body velocity to wheel linear speeds after measured track width is configured; conversion to wheel RPM additionally requires measured loaded wheel radius. Until those values are established, protocol tests use synthetic values only.
