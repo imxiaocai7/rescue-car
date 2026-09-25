@@ -39,6 +39,8 @@ STM32 可复用的 HAL 无关 C 解码器和序号/租约命令门控位于 [`st
 
 HAL 无关的轮速 PI 控制内核位于 [`stm32/include/wheel_speed_controller.h`](stm32/include/wheel_speed_controller.h) 与 [`stm32/src/wheel_speed_controller.c`](stm32/src/wheel_speed_controller.c)，支持双轮各实例化一份、目标加速度限制、占空比限幅、积分抗饱和与立即禁用清零。独立主机测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/wheel_speed_controller.c software/tests/wheel_speed_controller_test.c -lm -o "$env:TEMP\wheel_speed_controller_test.exe"; & "$env:TEMP\wheel_speed_controller_test.exe"`。这些测试只验证数值逻辑；不能据此设定实车 PI 增益或电机安全电流。
 
+双轮命令到控制输出的 HAL 无关协调层位于 [`stm32/include/motion_control.h`](stm32/include/motion_control.h) 和 [`stm32/src/motion_control.c`](stm32/src/motion_control.c)。它串起命令新鲜度/序号检查与双轮 PI 输出；主机测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/motion_command_guard.c software/stm32/src/wheel_speed_controller.c software/stm32/src/motion_control.c software/tests/motion_control_test.c -lm -o "$env:TEMP\motion_control_test.exe"; & "$env:TEMP\motion_control_test.exe"`。此输出仍只是数值接口，不代表引脚、TB6612 电流余量或真实电机动态已验证。
+
 像素检测框投影到机器人地面坐标见 [`pc/pixel_ground.py`](pc/pixel_ground.py)：四个地面标定点求平面单应矩阵，检测框底边中心作为落地点，再按差速里程计位姿变换到场地坐标。标定坐标按机器人 x 前、y 左、角度逆时针；相机必须固定，标定点和被投影点需在同一平面。四点投影只是几何初值，镜头畸变和安装变化需靠实测验证，未标定前不可用于自主运动。
 
 单周期 PC 自主决策协调入口见 [`pc/autonomy_cycle.py`](pc/autonomy_cycle.py)：对齐新鲜视觉和里程计时间戳后，将检测框投影到场地、把危险物/对手机器人及未知类别加入临时障碍层，再按任务规则和 A* 可达性选目标，跟踪路径并编码速度帧。类别映射、障碍尺寸/膨胀、目标停车距离、轮距、速度限制和数据新鲜度阈值均要求调用方明确配置；急停、过期输入、无标定、非法框或无合法可达目标会输出零速帧。它仍不负责真正的 YOLO 模型、目标跟踪、全局重定位、拾取动作或硬件通信；坐标是基于当前里程计位姿的估计值。
