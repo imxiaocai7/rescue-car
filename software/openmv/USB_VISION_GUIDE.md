@@ -71,6 +71,12 @@ dataset/camera_raw/<UTC时间_随机后缀>/
 
 ## 测量含义与实测记录
 
+2026-09-27 检查到板载 `E:\main.py` 可读，SHA-256 为
+`7C7BEE2735D37595E3B529F77385F077804D24C53C86718A8AF86674C7C9A28E`；其内容为红色矩形跟踪，
+配置 RGB565/VGA 和 UART3 9600。Windows 将 `OPENMV` 盘报告为 `Full Repair Needed`。
+本次没有冷启动，因此不能据此确认脚本是否成功自启；也没有修复或写入板载盘。
+该现存脚本和 ESP32 网关所需的 `camera_uart.py`（UART3 921600、请求/应答图像帧）不兼容。
+
 预热后 120 帧的台架测试：320×240 JPEG，平均接收 23.29 FPS，平均 USB 读取 23.33 ms，
 最大读取 24.98 ms，无客户端错误。保存了 4 张图，记录位于本机
 `dataset/camera_raw/20260926T151043Z_aa8cd69a/summary.json`。
