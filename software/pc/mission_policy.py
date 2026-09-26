@@ -41,16 +41,29 @@ class Target:
 
 @dataclass(frozen=True)
 class MissionProgress:
-    """Only persistent rule state; update it after confirmed pickup/drop-off."""
+    """Persistent rule state; update it only after confirmed pickup/drop-off.
+
+    ``delivered_material_count`` is cumulative score progress, while
+    ``carried_material_count`` is the number aboard on this trip. Capacity is
+    per trip, so deliveries from earlier trips do not consume current capacity.
+    """
 
     first_ordinary_delivered: bool = False
     delivered_material_count: int = 0
     carried_material_count: int = 0
     casualty_onboard: bool = False
+    delivered_casualty_count: int = 0
 
     def __post_init__(self) -> None:
-        if self.delivered_material_count < 0 or self.carried_material_count < 0:
-            raise ValueError("material counts cannot be negative")
+        for name, count in (
+            ("delivered_material_count", self.delivered_material_count),
+            ("carried_material_count", self.carried_material_count),
+            ("delivered_casualty_count", self.delivered_casualty_count),
+        ):
+            if type(count) is not int or count < 0:
+                raise ValueError(f"{name} must be a nonnegative integer")
+        if type(self.first_ordinary_delivered) is not bool or type(self.casualty_onboard) is not bool:
+            raise TypeError("mission flags must be booleans")
         if self.casualty_onboard and self.carried_material_count:
             raise ValueError("casualty and material cargo cannot share a trip")
         if self.casualty_onboard and not self.first_ordinary_delivered:
@@ -103,8 +116,7 @@ class MissionPolicy:
             return TargetEvaluation(True, "casualty_trip")
 
         if target.kind in MATERIAL_KINDS:
-            total = progress.delivered_material_count + progress.carried_material_count
-            if total >= self.max_materials:
+            if progress.carried_material_count >= self.max_materials:
                 return TargetEvaluation(False, "material_limit_reached")
             return TargetEvaluation(True, "material_capacity_available")
 

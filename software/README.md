@@ -27,7 +27,9 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 在仓库根目录运行 `python software/pc/vision_workflow.py audit --dataset-root dataset/rescue` 审查；训练使用 `python software/pc/vision_workflow.py train --dataset-root dataset/rescue --model yolo26n.pt --device 0`；最终留出的测试集评估使用 `python software/pc/vision_workflow.py evaluate --dataset-root dataset/rescue --weights runs/rescue/rescue/weights/best.pt --split test --device 0`。初始参数按 Windows 单张 RTX 4060 的小批量设置，数据和训练运行尚不存在时不会产生模型或识别效果结论。
 
-离线目标规则模块见 [`pc/mission_policy.py`](pc/mission_policy.py)：首个任务仅允许收集一个普通物资；危险物和对方机器人仅作为障碍；伤员单独运输；普通与核心物资总数封顶 3 个。输入必须是已完成分类、置信度筛选和地面坐标投影的候选目标，以及确认后的任务/载荷状态；模块只返回合法目标，不驱动车辆。
+离线目标规则模块见 [`pc/mission_policy.py`](pc/mission_policy.py)：首趟仅允许收集一个普通物资；完成首趟后，普通与核心物资按当前趟载荷计数、每趟最多 3 个；伤员单独运输；危险物和对方机器人仅作为障碍。累计已交付物资只用于任务进度，不占用下一趟容量。输入必须是已完成分类、置信度筛选和地面坐标投影的候选目标，以及确认后的任务/载荷状态；模块只返回合法目标，不驱动车辆。
+
+完整任务执行状态机见 [`pc/mission_executor.py`](pc/mission_executor.py)：连接搜寻、导航到目标、等待收集确认、返航和等待投放确认；按照物资区/伤员区分别规划返程。只有收到外部收集/投放确认事件才更新任务进度；危险或未知障碍进入临时地图；视觉/位姿过期、目标暂时不可见或路线不可达时输出零速帧。该模块消费已经投影到场地坐标的目标，目前收集/投放确认需要仿真器、传感器或上层程序提供，舵机角度、目标间距和安全区坐标仍须结合比赛场地及实物标定。
 
 离线 A* 栅格规划器见 [`pc/grid_planner.py`](pc/grid_planner.py)：默认地图为 3 m × 3 m、50 mm 分辨率，可配置矩形/圆形障碍、机器人安全膨胀和场地边界余量；使用 8 邻域且禁止斜穿障碍角。它只生成地图路径点，不生成轮速或底盘动作，实际膨胀距离须待 CAD 外形和轮距冻结后设置。
 

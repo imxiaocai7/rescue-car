@@ -36,11 +36,19 @@ class MissionPolicyTests(unittest.TestCase):
             self.assertFalse(result.eligible)
             self.assertEqual(result.reason, "obstacle_only")
 
-    def test_material_count_includes_current_cargo_and_stops_at_three(self):
+    def test_material_capacity_is_per_trip_and_stops_at_three_carried(self):
         policy = MissionPolicy(max_materials=3)
         allowed = MissionProgress(first_ordinary_delivered=True, delivered_material_count=1, carried_material_count=1)
-        blocked = MissionProgress(first_ordinary_delivered=True, delivered_material_count=2, carried_material_count=1)
+        allowed_after_multiple_trips = MissionProgress(
+            first_ordinary_delivered=True,
+            delivered_material_count=7,
+            carried_material_count=2,
+        )
+        blocked = MissionProgress(first_ordinary_delivered=True, delivered_material_count=7, carried_material_count=3)
         self.assertTrue(policy.evaluate(target("core", TargetKind.CORE), allowed).eligible)
+        self.assertTrue(
+            policy.evaluate(target("ordinary-next-trip", TargetKind.ORDINARY), allowed_after_multiple_trips).eligible
+        )
         self.assertEqual(
             policy.evaluate(target("ordinary", TargetKind.ORDINARY), blocked).reason,
             "material_limit_reached",
