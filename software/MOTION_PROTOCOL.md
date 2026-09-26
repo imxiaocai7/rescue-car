@@ -23,6 +23,31 @@ A HAL-independent C stream decoder, CRC implementation, sequence comparator, and
 
 The receiver must stop both wheels when a valid command's lease expires, on communication loss, or on an explicit upstream safety stop. It should not continue the last nonzero target indefinitely. `HOLD` leaves the gate where it is; safe startup gate position and gate open/closed angles must be established during physical commissioning. This lease is a motion watchdog, not an emergency-stop circuit.
 
+## STM32 telemetry protocol v1
+
+Telemetry travels in the reverse direction over the same ESP32 UART/TCP bridge. TCP port `5001` carries the raw bidirectional byte stream; the ESP32 does not reinterpret telemetry or commands. Every telemetry frame is 38 bytes, little-endian:
+
+| Offset | Size | Field | Meaning |
+|---:|---:|---|---|
+| 0 | 4 | Magic | ASCII `RST1` |
+| 4 | 1 | Version | `1` |
+| 5 | 1 | Type | `2` = telemetry |
+| 6 | 4 | Sequence | Telemetry sequence, wraps at 2³² |
+| 10 | 4 | STM32 tick | Milliseconds since boot, wraps at 2³² |
+| 14 | 4 | Last command sequence | Most recently accepted `RCM1` sequence |
+| 18 | 4 | Left encoder total | Signed 32-bit accumulated count, modulo 2³² |
+| 22 | 4 | Right encoder total | Signed 32-bit accumulated count, modulo 2³² |
+| 26 | 2 | Gyro Z rate | Signed milliradians/second; positive is counter-clockwise |
+| 28 | 2 | Left ToF | Millimetres; invalid sentinel `0xFFFF` |
+| 30 | 2 | Right ToF | Millimetres; invalid sentinel `0xFFFF` |
+| 32 | 2 | Battery | Millivolts; zero when invalid |
+| 34 | 2 | Status flags | Sensor, servo, emergency-stop, and command-valid bits |
+| 36 | 2 | CRC | CRC-16/CCITT-FALSE over bytes 0–35, little-endian |
+
+Status bits 0–9 respectively mean: left encoder valid, right encoder valid, gyro valid, left ToF valid, right ToF valid, battery valid, servo open, servo closed, emergency stop active, and last command sequence valid. Other bits must be zero. Valid ToF values must be 20–4000 mm; valid battery readings must be nonzero; invalid gyro values are zero. Servo-open and servo-closed cannot both be set. Encoder totals are for odometry; the PC must subtract successive samples using signed modular difference. The STM32 tick is not synchronized to the PC clock; freshness uses PC receive time.
+
+The Python frame encoder/stream decoder is in [`pc/rover_telemetry.py`](pc/rover_telemetry.py), and the nonblocking application-level TCP client is in [`pc/motion_link.py`](pc/motion_link.py). The HAL-independent STM32 encoder is in [`stm32/include/rover_telemetry.h`](stm32/include/rover_telemetry.h) and [`stm32/src/rover_telemetry.c`](stm32/src/rover_telemetry.c); it shares the command protocol CRC implementation. This defines the data contract, but no STM32 HAL task currently samples these sensors or schedules telemetry.
+
 Wheel targets are signed velocities, not PWM duty values. STM32 firmware is responsible for closed-loop wheel-speed control using verified encoder direction/counts; these must not be guessed from product photos. The host-side path follower can convert body velocity to wheel linear speeds after measured track width is configured; conversion to wheel RPM additionally requires measured loaded wheel radius. Until those values are established, protocol tests use synthetic values only.
 
 An optional HAL-independent PI wheel-speed controller is in [`stm32/include/wheel_speed_controller.h`](stm32/include/wheel_speed_controller.h) and [`stm32/src/wheel_speed_controller.c`](stm32/src/wheel_speed_controller.c). It applies configured target-speed/acceleration/duty bounds, conditional anti-windup and an immediate disabled-to-zero path. Gains, max speed, acceleration, duty cap, loop period, encoder speed estimation, motor polarity and TB6612 pin mapping remain commissioning inputs; this controller is not connected to hardware and its tests do not establish safe real-world gains.

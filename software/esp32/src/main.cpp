@@ -9,6 +9,11 @@ constexpr uint32_t kCameraBaud = 921600;
 constexpr int kCameraRxPin = 16;  // OpenMV P4 TX -> ESP32-S3 GPIO16 RX
 constexpr int kCameraTxPin = 15;  // OpenMV P5 RX <- ESP32-S3 GPIO15 TX
 constexpr uint16_t kTcpPort = 5000;
+constexpr uint16_t kMotionTcpPort = 5001;
+constexpr uint32_t kMotionBaud = 115200;
+constexpr int kMotionRxPin = 18;  // STM32 TX -> ESP32-S3 GPIO18 RX (verify board pinout)
+constexpr int kMotionTxPin = 17;  // STM32 RX <- ESP32-S3 GPIO17 TX (verify board pinout)
+constexpr size_t kMotionBridgeBufferSize = 256;
 constexpr size_t kHeaderSize = 26;
 constexpr size_t kMaxJpegSize = 120000;
 constexpr uint16_t kMaxImageSide = 2048;
@@ -26,7 +31,9 @@ constexpr uint8_t kVersion = 1;
 constexpr uint8_t kJpegKind = 1;
 
 WiFiServer server(kTcpPort);
+WiFiServer motionServer(kMotionTcpPort);
 HardwareSerial cameraUart(1);
+HardwareSerial motionUart(2);
 uint8_t *jpegBuffer = nullptr;
 
 struct FrameHeader {
@@ -217,6 +224,64 @@ void printNetworkInfo() {
   Serial.println(WiFi.softAPIP());
   Serial.printf("TCP image server: %s:%u\n", WiFi.softAPIP().toString().c_str(),
                 kTcpPort);
+  Serial.printf("TCP motion bridge: %s:%u\n", WiFi.softAPIP().toString().c_str(),
+                kMotionTcpPort);
+}
+
+void motionBridgeTask(void *parameter) {
+  (void)parameter;
+  uint8_t buffer[kMotionBridgeBufferSize];
+
+  for (;;) {
+    WiFiClient client = motionServer.available();
+    if (!client) {
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+
+    client.setNoDelay(true);
+    Serial.printf("Motion client connected: %s\n",
+                  client.remoteIP().toString().c_str());
+    while (client.connected()) {
+      bool progressed = false;
+
+      const int tcpAvailable = client.available();
+      if (tcpAvailable > 0) {
+        const size_t request = min(
+            static_cast<size_t>(tcpAvailable), sizeof(buffer));
+        const int count = client.read(buffer, request);
+        if (count > 0) {
+          const size_t written = motionUart.write(
+              buffer, static_cast<size_t>(count));
+          if (written != static_cast<size_t>(count)) {
+            Serial.println("Motion UART: incomplete TCP-to-UART write");
+            break;
+          }
+          progressed = true;
+        }
+      }
+
+      const int uartAvailable = motionUart.available();
+      if (uartAvailable > 0) {
+        const size_t request = min(
+            static_cast<size_t>(uartAvailable), sizeof(buffer));
+        const int count = motionUart.read(buffer, request);
+        if (count > 0) {
+          if (!writeTcpExact(client, buffer, static_cast<size_t>(count))) {
+            Serial.println("Motion TCP client stopped reading telemetry");
+            break;
+          }
+          progressed = true;
+        }
+      }
+
+      if (!progressed) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+      }
+    }
+    client.stop();
+    Serial.println("Motion client disconnected");
+  }
 }
 
 }  // namespace
@@ -228,6 +293,8 @@ void setup() {
 
   cameraUart.setRxBufferSize(8192);
   cameraUart.begin(kCameraBaud, SERIAL_8N1, kCameraRxPin, kCameraTxPin);
+  motionUart.setRxBufferSize(2048);
+  motionUart.begin(kMotionBaud, SERIAL_8N1, kMotionRxPin, kMotionTxPin);
 
   if (!psramFound()) {
     Serial.println("ERROR: PSRAM not detected; refusing to relay incomplete frames");
@@ -254,12 +321,24 @@ void setup() {
 
   server.begin();
   server.setNoDelay(true);
+  motionServer.begin();
   printNetworkInfo();
   Serial.printf("Camera UART: %lu baud, RX GPIO%d, TX GPIO%d\n",
                 static_cast<unsigned long>(kCameraBaud), kCameraRxPin,
                 kCameraTxPin);
   Serial.printf("PSRAM frame buffer: %u bytes\n",
                 static_cast<unsigned>(kMaxJpegSize));
+  const BaseType_t taskCreated = xTaskCreatePinnedToCore(
+      motionBridgeTask,
+      "motion-bridge",
+      4096,
+      nullptr,
+      1,
+      nullptr,
+      0);
+  if (taskCreated != pdPASS) {
+    Serial.println("ERROR: could not create motion bridge task");
+  }
 }
 
 void loop() {
