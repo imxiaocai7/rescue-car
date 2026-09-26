@@ -84,8 +84,8 @@ class DifferentialDriveOdometry:
     """Integrate signed wheel ticks and bias-corrected BMI088 gyro rate.
 
     Both wheel tick streams must be positive in the robot's forward direction.
-    The caller supplies gyro rate in rad/s after axis/sign and bias correction.
-    This is dead reckoning; it does not claim global localization.
+    The caller supplies gyro rate in rad/s after axis/sign and bias correction;
+    ``None`` selects wheel-only yaw. This is dead reckoning, not global localization.
     """
 
     def __init__(self, config: DifferentialDriveConfig, pose: Pose2D = Pose2D()):
@@ -118,12 +118,12 @@ class DifferentialDriveOdometry:
         self,
         left_ticks: int,
         right_ticks: int,
-        gyro_z_rad_s: float,
+        gyro_z_rad_s: float | None,
         dt_seconds: float,
     ) -> Pose2D:
         if self._previous_left is None or self._previous_right is None:
             raise RuntimeError("call reset() with current encoder counters before update()")
-        if not math.isfinite(gyro_z_rad_s):
+        if gyro_z_rad_s is not None and not math.isfinite(gyro_z_rad_s):
             raise ValueError("gyro rate must be finite")
         if not math.isfinite(dt_seconds) or dt_seconds <= 0:
             raise ValueError("dt_seconds must be positive and finite")
@@ -142,11 +142,14 @@ class DifferentialDriveOdometry:
         left_distance = left_delta * metres_per_tick
         right_distance = right_delta * metres_per_tick
         wheel_yaw_delta = (right_distance - left_distance) / config.track_width_m
-        gyro_yaw_delta = gyro_z_rad_s * dt_seconds
-        yaw_delta = (
-            config.gyro_weight * gyro_yaw_delta
-            + (1.0 - config.gyro_weight) * wheel_yaw_delta
-        )
+        if gyro_z_rad_s is None:
+            yaw_delta = wheel_yaw_delta
+        else:
+            gyro_yaw_delta = gyro_z_rad_s * dt_seconds
+            yaw_delta = (
+                config.gyro_weight * gyro_yaw_delta
+                + (1.0 - config.gyro_weight) * wheel_yaw_delta
+            )
 
         center_distance = (left_distance + right_distance) / 2.0
         midpoint_yaw = self._yaw_unwrapped + yaw_delta / 2.0
