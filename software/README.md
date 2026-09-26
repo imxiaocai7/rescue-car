@@ -33,6 +33,10 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 电脑端实时预览及可选 YOLO 推理见 [`pc/view_camera.py`](pc/view_camera.py)。没有训练权重时可只看预览和采集 JPEG；加载权重后才显示模型检测框。当前仓库没有救援类别训练集或权重，因此不应把通用模型检测结果用于自主决策。
 
+视觉影子记录也从 `view_camera.py` 启动：在已有实时预览命令后增加 `--shadow-log logs/vision/run_001.jsonl`，每帧保存序号、电脑接收时刻、检测框和 YOLO 推理耗时。日志路径必须是新文件。该模式不连接运动端口；未提供救援模型时记录的是“未运行检测”，不能把空检测当作背景样本。当前没有真实定位位姿和地面标定，因此实时相机日志只记录感知结果，不声称完成了实车目标定位或路径决策。
+
+视觉到决策周期可先用合成输入检查并重放：`python software/pc/vision_shadow.py demo --log logs/vision/shadow_demo.jsonl`，再运行 `python software/pc/vision_shadow.py replay --log logs/vision/shadow_demo.jsonl`。日志包含模拟检测、候选目标、路径、输出速度帧及过期数据/无定位时的停车结果；回放逐周期复算并比对。合成场地标定仅用于软件流程验证，不可用于实车导航。回放和实时记录都只保存命令结果，不会发送给小车。
+
 比赛目标类别与标注规则见 [`pc/VISION_DATASET.md`](pc/VISION_DATASET.md)，固定类别编号和初赛外观参考见 [`pc/rescue_classes.json`](pc/rescue_classes.json)：普通物资、核心物资、伤员、危险目标、对方机器人。数据集审查、训练和评估入口为 [`pc/vision_workflow.py`](pc/vision_workflow.py)，支持 YOLO 标签校验、漏标/孤立标签检查、类别分布统计、损坏图片和跨集合完全重复图片检查。数据集按文档存放在 `dataset/rescue`；已加入本机 Git 忽略规则，避免提交图片、模型权重和训练产物。
 
 在仓库根目录运行 `python software/pc/vision_workflow.py audit --dataset-root dataset/rescue` 审查；训练使用 `python software/pc/vision_workflow.py train --dataset-root dataset/rescue --model yolo26n.pt --device 0`；最终留出的测试集评估使用 `python software/pc/vision_workflow.py evaluate --dataset-root dataset/rescue --weights runs/rescue/rescue/weights/best.pt --split test --device 0`。初始参数按 Windows 单张 RTX 4060 的小批量设置，数据和训练运行尚不存在时不会产生模型或识别效果结论。

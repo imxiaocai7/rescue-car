@@ -9,6 +9,7 @@ import cv2
 
 from rescue_transport import ImageFrameDecoder, encode_frame_ack
 from rescue_vision import annotate_frame, decode_jpeg, run_detector
+from vision_shadow import ShadowLogWriter
 
 
 def load_yolo(weights: Path):
@@ -33,6 +34,11 @@ def main() -> None:
     parser.add_argument("--imgsz", type=int, default=416)
     parser.add_argument("--device", help="Ultralytics device, e.g. 0 or cpu; default is auto")
     parser.add_argument("--save-dir", type=Path, help="optional directory for frames saved by pressing S")
+    parser.add_argument(
+        "--shadow-log",
+        type=Path,
+        help="optional new JSONL file for per-frame detections and timing; never sends motion",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.conf <= 1.0:
@@ -50,12 +56,21 @@ def main() -> None:
     if args.save_dir is not None:
         args.save_dir.mkdir(parents=True, exist_ok=True)
 
+    shadow_log = None
+    if args.shadow_log is not None:
+        try:
+            shadow_log = ShadowLogWriter(args.shadow_log)
+        except FileExistsError:
+            parser.error(f"shadow log already exists; choose a new path: {args.shadow_log}")
+
     decoder = ImageFrameDecoder()
     count = 0
     last_frame_at: float | None = None
     cv2.namedWindow("Rescue robot camera", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Rescue robot camera", 960, 720)
     print(f"Connecting to camera gateway {args.host}:{args.port}; press Q/Esc to quit, S to save a frame.")
+    if shadow_log is not None:
+        print(f"Per-frame shadow log: {args.shadow_log} (mission pose/calibration are not supplied).")
 
     try:
         with socket.create_connection((args.host, args.port), timeout=5) as connection:
@@ -68,8 +83,10 @@ def main() -> None:
                 for frame in decoder.feed(chunk):
                     image = decode_jpeg(frame)
                     now = time.perf_counter()
+                    received_monotonic_ns = time.perf_counter_ns()
                     fps = None if last_frame_at is None else 1.0 / max(now - last_frame_at, 1e-6)
                     last_frame_at = now
+                    inference_started = time.perf_counter()
                     detections = (
                         run_detector(
                             image,
@@ -81,6 +98,20 @@ def main() -> None:
                         if model is not None
                         else []
                     )
+                    inference_ms = (
+                        (time.perf_counter() - inference_started) * 1000.0
+                        if model is not None
+                        else None
+                    )
+                    if shadow_log is not None:
+                        shadow_log.record_vision_frame(
+                            frame,
+                            detections,
+                            image_size=(image.shape[1], image.shape[0]),
+                            received_monotonic_ns=received_monotonic_ns,
+                            inference_ms=inference_ms,
+                            detector_enabled=model is not None,
+                        )
                     display = annotate_frame(
                         image,
                         frame,
@@ -110,6 +141,8 @@ def main() -> None:
                     )
                     connection.sendall(encode_frame_ack(frame.seq))
     finally:
+        if shadow_log is not None:
+            shadow_log.close()
         cv2.destroyAllWindows()
         print(f"Viewer stopped after {count} frames.")
 
