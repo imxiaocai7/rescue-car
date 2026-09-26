@@ -31,6 +31,8 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 完整任务执行状态机见 [`pc/mission_executor.py`](pc/mission_executor.py)：连接搜寻、导航到目标、等待收集确认、返航和等待投放确认；按照物资区/伤员区分别规划返程。只有收到外部收集/投放确认事件才更新任务进度；危险或未知障碍进入临时地图；视觉/位姿过期、目标暂时不可见或路线不可达时输出零速帧。该模块消费已经投影到场地坐标的目标，目前收集/投放确认需要仿真器、传感器或上层程序提供，舵机角度、目标间距和安全区坐标仍须结合比赛场地及实物标定。
 
+无硬件的端到端任务仿真和逐帧重放见 [`pc/mission_simulator.py`](pc/mission_simulator.py)。默认场景依次模拟首件普通物资、后续三件物资和单独伤员转运，含固定障碍、动态危险圆形障碍、理想差速运动学、传感器延迟/丢帧和运动命令丢帧选项。运行 `python software/pc/mission_simulator.py --record logs/mission.jsonl` 可保存输入、状态和命令帧；运行 `python software/pc/mission_simulator.py --replay logs/mission.jsonl` 会重新执行状态机并逐帧核对输出。可用 `--drop-vision-every 10`、`--drop-odometry-every 10` 或 `--drop-command-every 10` 注入周期丢帧。仿真里的定位和收集/投放确认是理想值，不用于推断实车成功率、避障距离或控制参数。
+
 离线 A* 栅格规划器见 [`pc/grid_planner.py`](pc/grid_planner.py)：默认地图为 3 m × 3 m、50 mm 分辨率，可配置矩形/圆形障碍、机器人安全膨胀和场地边界余量；使用 8 邻域且禁止斜穿障碍角。它只生成地图路径点，不生成轮速或底盘动作，实际膨胀距离须待 CAD 外形和轮距冻结后设置。
 
 将目标合法性和路线可达性联合排序的离线决策入口见 [`pc/autonomous_planner.py`](pc/autonomous_planner.py)。目前规划到目标所在栅格中心；真实收集还需要按 CAD 几何确定接近点/朝向，并将检测目标可靠投影到地图。
