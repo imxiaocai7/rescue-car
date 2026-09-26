@@ -33,6 +33,8 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 相机检测到完整任务指令的适配层见 [`pc/mission_runtime.py`](pc/mission_runtime.py)：按配置把类别编号映射为任务类别，将检测框底边中心通过单应矩阵投到场地坐标，并以最近邻关联维持短时稳定目标 ID；危险、未知和低置信度目标作为临时障碍，另可传入已换算到场地坐标的测距障碍。`RescueMissionRuntime.step()` 返回状态机结果和可发给 STM32 的命令帧。该层尚未接入实时 TCP 相机循环，原因是相机外参、目标尺寸和 ToF 安装朝向需按实车测定；目标跟踪目前只适合短时遮挡桥接。
 
+遥测位姿与视觉任务的 PC 协调层见 [`pc/mission_control.py`](pc/mission_control.py)：每帧将新鲜遥测送入 `TelemetryOdometry`，融合位姿后调用 `RescueMissionRuntime`，并将 STM32 急停、操作者急停及可选的低电压阈值锁存为零速任务命令；结果附带 STM32 是否确认命令序号的状态。调用方仍负责相机/YOLO循环、TCP收发、计时戳、场地图/单应标定、ToF 安装姿态换算和物资收集/投放确认。清除安全锁存必须显式调用并由操作者确认。
+
 无硬件的端到端任务仿真和逐帧重放见 [`pc/mission_simulator.py`](pc/mission_simulator.py)。默认场景依次模拟首件普通物资、后续三件物资和单独伤员转运，含固定障碍、动态危险圆形障碍、理想差速运动学、传感器延迟/丢帧和运动命令丢帧选项。运行 `python software/pc/mission_simulator.py --record logs/mission.jsonl` 可保存输入、状态和命令帧；运行 `python software/pc/mission_simulator.py --replay logs/mission.jsonl` 会重新执行状态机并逐帧核对输出。可用 `--drop-vision-every 10`、`--drop-odometry-every 10` 或 `--drop-command-every 10` 注入周期丢帧。仿真里的定位和收集/投放确认是理想值，不用于推断实车成功率、避障距离或控制参数。
 
 离线 A* 栅格规划器见 [`pc/grid_planner.py`](pc/grid_planner.py)：默认地图为 3 m × 3 m、50 mm 分辨率，可配置矩形/圆形障碍、机器人安全膨胀和场地边界余量；使用 8 邻域且禁止斜穿障碍角。它只生成地图路径点，不生成轮速或底盘动作，实际膨胀距离须待 CAD 外形和轮距冻结后设置。
