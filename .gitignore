@@ -8,6 +8,10 @@ tmp/
 **/__pycache__/
 *.py[cod]
 .pio/
+.venv-vision/
+local_backups/
+dataset/camera_raw/
+logs/vision/
 
 # Rescue vision datasets, trained weights, and generated run artifacts
 dataset/rescue/

@@ -1,5 +1,15 @@
 # 第一阶段软件：相机图像帧协议
 
+## 已增加 USB 直连实物入口
+
+OpenMV 现在可以不经过 ESP32，直接用 USB 预览、采集原图和记录测试数据。
+入口为 [`pc/view_openmv_usb.py`](pc/view_openmv_usb.py)，操作步骤与实测结果见
+[`openmv/USB_VISION_GUIDE.md`](openmv/USB_VISION_GUIDE.md)。USB 实物已通过 120 帧取图验证；
+ESP32/Wi-Fi 全链路与救援类别识别仍未因此得到验证。`--start-preview` 只运行 RAM 脚本，
+不覆盖板上的 `main.py`，也不刷固件。
+
+## 原有 ESP32 图传链路
+
 这部分只处理图像，不会向电机或舵机发命令。电脑端帧编解码、坏帧重同步、OpenMV 采集脚本、ESP32-S3 网关和预览程序已写好，但整条链路**尚未在实物上运行验证**。
 
 ## 数据流
