@@ -47,6 +47,15 @@ bool motion_control_accept(
         &control->command_guard, command, received_at_ms);
 }
 
+void motion_control_disarm(motion_control_t *control) {
+    if (control == NULL || !control->initialized) {
+        return;
+    }
+    motion_command_guard_disarm(&control->command_guard);
+    wheel_speed_controller_reset(&control->left_controller);
+    wheel_speed_controller_reset(&control->right_controller);
+}
+
 bool motion_control_update(
     motion_control_t *control,
     uint32_t now_ms,

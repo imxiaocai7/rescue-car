@@ -28,6 +28,9 @@ bool motion_control_accept(
     const motion_command_t *command,
     uint32_t received_at_ms);
 
+/* Stop immediately and require a newer command before motion can resume. */
+void motion_control_disarm(motion_control_t *control);
+
 /* Returns true only when a fresh command and valid feedback produced outputs. */
 bool motion_control_update(
     motion_control_t *control,

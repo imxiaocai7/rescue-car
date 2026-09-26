@@ -21,15 +21,27 @@ bool motion_command_guard_accept(
         || command->actuator > MOTION_ACTUATOR_OPEN) {
         return false;
     }
-    if (guard->has_command
-        && !motion_sequence_is_newer(command->sequence, guard->active_command.sequence)) {
+    if (guard->has_sequence
+        && !motion_sequence_is_newer(command->sequence, guard->last_sequence)) {
         return false;
     }
 
     guard->active_command = *command;
     guard->received_at_ms = received_at_ms;
     guard->has_command = true;
+    guard->has_sequence = true;
+    guard->last_sequence = command->sequence;
     return true;
+}
+
+void motion_command_guard_disarm(motion_command_guard_t *guard) {
+    if (guard == NULL) {
+        return;
+    }
+    guard->has_command = false;
+    guard->received_at_ms = 0U;
+    memset(&guard->active_command, 0, sizeof(guard->active_command));
+    guard->active_command.actuator = MOTION_ACTUATOR_HOLD;
 }
 
 bool motion_command_guard_get(
