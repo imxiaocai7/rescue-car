@@ -9,5 +9,10 @@ tmp/
 *.py[cod]
 .pio/
 
+# Rescue vision datasets, trained weights, and generated run artifacts
+dataset/rescue/
+runs/rescue/
+runs/rescue_eval/
+
 # Supplied open-source reference snapshot: keep locally, track project-specific work separately
 开源参考方案/

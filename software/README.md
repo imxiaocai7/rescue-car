@@ -23,6 +23,10 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 电脑端实时预览及可选 YOLO 推理见 [`pc/view_camera.py`](pc/view_camera.py)。没有训练权重时可只看预览和采集 JPEG；加载权重后才显示模型检测框。当前仓库没有救援类别训练集或权重，因此不应把通用模型检测结果用于自主决策。
 
+比赛目标类别与标注规则见 [`pc/VISION_DATASET.md`](pc/VISION_DATASET.md)，固定类别编号和初赛外观参考见 [`pc/rescue_classes.json`](pc/rescue_classes.json)：普通物资、核心物资、伤员、危险目标、对方机器人。数据集审查、训练和评估入口为 [`pc/vision_workflow.py`](pc/vision_workflow.py)，支持 YOLO 标签校验、漏标/孤立标签检查、类别分布统计、损坏图片和跨集合完全重复图片检查。数据集按文档存放在 `dataset/rescue`；已加入本机 Git 忽略规则，避免提交图片、模型权重和训练产物。
+
+在仓库根目录运行 `python software/pc/vision_workflow.py audit --dataset-root dataset/rescue` 审查；训练使用 `python software/pc/vision_workflow.py train --dataset-root dataset/rescue --model yolo26n.pt --device 0`；最终留出的测试集评估使用 `python software/pc/vision_workflow.py evaluate --dataset-root dataset/rescue --weights runs/rescue/rescue/weights/best.pt --split test --device 0`。初始参数按 Windows 单张 RTX 4060 的小批量设置，数据和训练运行尚不存在时不会产生模型或识别效果结论。
+
 离线目标规则模块见 [`pc/mission_policy.py`](pc/mission_policy.py)：首个任务仅允许收集一个普通物资；危险物和对方机器人仅作为障碍；伤员单独运输；普通与核心物资总数封顶 3 个。输入必须是已完成分类、置信度筛选和地面坐标投影的候选目标，以及确认后的任务/载荷状态；模块只返回合法目标，不驱动车辆。
 
 离线 A* 栅格规划器见 [`pc/grid_planner.py`](pc/grid_planner.py)：默认地图为 3 m × 3 m、50 mm 分辨率，可配置矩形/圆形障碍、机器人安全膨胀和场地边界余量；使用 8 邻域且禁止斜穿障碍角。它只生成地图路径点，不生成轮速或底盘动作，实际膨胀距离须待 CAD 外形和轮距冻结后设置。

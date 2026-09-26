@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "classes": [
+    {
+      "id": 0,
+      "name": "ordinary_material",
+      "mission_kind": "ordinary",
+      "initial_round_reference": "初赛：绿色、边长约40 mm的立方体",
+      "score_per_object": 5,
+      "transport_rule": "首趟必须单独运输1个普通物资；之后与核心物资合计每趟不超过3个"
+    },
+    {
+      "id": 1,
+      "name": "core_material",
+      "mission_kind": "core",
+      "initial_round_reference": "初赛：黑色、边长约40 mm的正三棱锥",
+      "score_per_object": 10,
+      "transport_rule": "可与普通物资同趟运输；与普通物资合计每趟不超过3个"
+    },
+    {
+      "id": 2,
+      "name": "casualty",
+      "mission_kind": "casualty",
+      "initial_round_reference": "初赛：橘色、约80×40×40 mm的长方体",
+      "score_per_object": 15,
+      "transport_rule": "单独运输，每趟只能运输1个，并送至伤员区"
+    },
+    {
+      "id": 3,
+      "name": "danger_object",
+      "mission_kind": "danger",
+      "initial_round_reference": "初赛：浅蓝色、边长约40 mm的立方体",
+      "score_per_object": 0,
+      "transport_rule": "不是救援目标；识别后避让，禁止送入安全区"
+    },
+    {
+      "id": 4,
+      "name": "opponent_robot",
+      "mission_kind": "opponent_robot",
+      "initial_round_reference": "场地中的对方救援机器人",
+      "score_per_object": 0,
+      "transport_rule": "动态障碍；避让，不得主动进攻或进入对方安全区"
+    }
+  ],
+  "rules": {
+    "first_transport_only_one_ordinary_material": true,
+    "max_material_objects_per_trip_after_first": 3,
+    "casualty_objects_per_trip": 1,
+    "danger_objects_are_never_transport_targets": true,
+    "final_round_appearance_may_change": true
+  }
+}
