@@ -105,7 +105,11 @@ class AutonomyCycleTests(unittest.TestCase):
         casualty_only = Detection(0, "ordinary", 0.95, (35, 35, 45, 45))
         result = self.run_cycle(
             detections=[casualty_only],
-            progress=MissionProgress(first_ordinary_delivered=True, delivered_material_count=3),
+            progress=MissionProgress(
+                first_ordinary_delivered=True,
+                delivered_material_count=3,
+                carried_material_count=3,
+            ),
         )
         self.assertEqual(result.status, "no_legal_reachable_target")
         self.assertEqual(result.motion_command.left_mm_s, 0)
