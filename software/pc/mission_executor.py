@@ -326,14 +326,12 @@ class MissionExecutor:
             )
         if outcome is PickupOutcome.FAILED:
             self._state = MissionState.SEARCH
-            failed_target = self._active_target
             self._active_target = None
             self._target_path = ()
             return self._stopped(
                 "pickup_failed_retry_allowed",
                 sequence,
                 actuator=ActuatorCommand.CLOSE,
-                target=failed_target,
             )
 
         target = self._active_target
@@ -365,7 +363,6 @@ class MissionExecutor:
                 "pickup_confirmed_returning",
                 sequence,
                 actuator=ActuatorCommand.CLOSE,
-                target=target,
             )
 
         next_target = self._select_target(targets, pose, grid)
@@ -382,7 +379,6 @@ class MissionExecutor:
             "pickup_confirmed_collecting_more",
             sequence,
             actuator=ActuatorCommand.CLOSE,
-            target=target,
         )
 
     def _navigate_to_zone(
