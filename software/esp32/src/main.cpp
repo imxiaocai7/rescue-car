@@ -110,7 +110,6 @@ bool readNextHeader(FrameHeader &header) {
   }
 
   // Recover from startup noise or a partial UART frame by sliding over bytes.
-  memmove(candidate, candidate + 1, sizeof(candidate) - 1);
   uint32_t lastByteAt = millis();
   while (millis() - lastByteAt < kUartInterByteTimeoutMs) {
     if (cameraUart.available() <= 0) {
@@ -226,6 +225,73 @@ void printNetworkInfo() {
                 kTcpPort);
   Serial.printf("TCP motion bridge: %s:%u\n", WiFi.softAPIP().toString().c_str(),
                 kMotionTcpPort);
+}
+
+// USB diagnostics are accepted only while no image TCP session is active.
+// They exercise the camera UART only; they never address the motion UART.
+void cameraWiringTest() {
+  cameraUart.end();
+  cameraUart.begin(115200, SERIAL_8N1, kCameraRxPin, kCameraTxPin);
+  while (cameraUart.available()) {
+    cameraUart.read();
+  }
+  const char request[] = "RESCUE_PING\n";
+  const char expected[] = "RESCUE_PONG\n";
+  uint8_t reply[sizeof(expected) - 1];
+  cameraUart.write(reinterpret_cast<const uint8_t *>(request), sizeof(request) - 1);
+  const bool ok = readUartExact(reply, sizeof(reply)) &&
+                  memcmp(reply, expected, sizeof(reply)) == 0;
+  Serial.println(ok ? "UART_TEST_OK" : "UART_TEST_FAILED");
+  cameraUart.end();
+  cameraUart.begin(kCameraBaud, SERIAL_8N1, kCameraRxPin, kCameraTxPin);
+}
+
+bool writeUsbExact(const uint8_t *data, size_t length) {
+  size_t sent = 0;
+  uint32_t lastProgressAt = millis();
+  while (sent < length) {
+    if (!Serial || millis() - lastProgressAt >= kTcpWriteTimeoutMs) {
+      return false;
+    }
+    const int available = Serial.availableForWrite();
+    if (available <= 0) {
+      delay(1);
+      continue;
+    }
+    const size_t count = Serial.write(data + sent,
+        min(length - sent, static_cast<size_t>(available)));
+    if (count) {
+      sent += count;
+      lastProgressAt = millis();
+    }
+  }
+  return true;
+}
+
+void handleUsbDiagnostic() {
+  if (!Serial.available()) {
+    return;
+  }
+  const int command = Serial.read();
+  if (command == '?') {
+    printNetworkInfo();
+    Serial.printf("Flash=%u PSRAM=%u CameraRX=%d CameraTX=%d Baud=%lu\n",
+        ESP.getFlashChipSize(), ESP.getPsramSize(), kCameraRxPin, kCameraTxPin,
+        static_cast<unsigned long>(kCameraBaud));
+    Serial.println("USB diagnostic: T=115200 wiring ping, J=one validated RSV1 frame");
+  } else if (command == 'T') {
+    cameraWiringTest();
+  } else if (command == 'J') {
+    const uint8_t request = 'R';
+    FrameHeader header{};
+    if (cameraUart.write(&request, 1) == 1 && receiveFrame(header)) {
+      if (writeUsbExact(header.bytes, sizeof(header.bytes))) {
+        writeUsbExact(jpegBuffer, header.jpegSize);
+      }
+    } else {
+      Serial.println("USB_FRAME_FAILED");
+    }
+  }
 }
 
 void motionBridgeTask(void *parameter) {
@@ -344,6 +410,7 @@ void setup() {
 void loop() {
   WiFiClient client = server.available();
   if (!client) {
+    handleUsbDiagnostic();
     delay(10);
     return;
   }

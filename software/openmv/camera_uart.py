@@ -53,6 +53,7 @@ sensor.set_framesize(sensor.QVGA)
 sensor.skip_frames(time=2000)
 uart = UART(3, BAUD, timeout_char=1000)
 sequence = 0
+print("RESCUE_UART_CAMERA_READY", BAUD, sensor.width(), sensor.height())
 
 while True:
     if not uart.any():

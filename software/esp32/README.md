@@ -22,6 +22,40 @@
 
 两块板分别供电，UART 电平按 3.3 V 逻辑连接。不要把 5 V 接入 UART GPIO。初次联调可将 `src/main.cpp` 和 `software/openmv/camera_uart.py` 的波特率同时改为 115200；验证稳定后再同时切到 921600。
 
+## 上板后的 USB 台架检查
+
+电脑目前使用 USB 连接 ESP32 原生 USB-JTAG/串口（设备管理器中的 `USB JTAG/serial debug unit`，
+本机为 COM8）和 OpenMV（本机为 COM10）。先不要启动 PlatformIO 串口监视器，因为检查脚本要独占这两个串口。
+首次编译下载前，需要准备 PlatformIO Core 和 ESP32 工具链。从仓库根目录运行：
+
+```powershell
+.\.venv-vision\Scripts\python.exe -m pip install platformio==6.1.18 esptool==4.11.0
+.\.venv-vision\Scripts\python.exe -m platformio run -d software/esp32
+.\.venv-vision\Scripts\python.exe -m platformio run -d software/esp32 -t upload --upload-port COM8
+.\.venv-vision\Scripts\python.exe software/pc/check_camera_gateway.py --camera-port COM10 --gateway-port COM8 --pings 5 --frames 30 --report logs/vision/openmv_esp32_usb_check_001.json
+```
+
+程序先请求 ESP32 的只读状态；之后短暂把 OpenMV UART3 与 ESP32 UART1 调到 115200 bit/s，
+发送 5 次 `RESCUE_PING`/`RESCUE_PONG` 往返确认，再恢复为 921600 bit/s，读取 30 张 JPEG，
+逐帧验证头、尺寸、长度、JPEG 标志和 CRC32。所有操作只使用 UART1/USB，不调用电机 UART2。
+OpenMV 脚本只在 RAM 运行，程序结束会发停止指令。若线接反、波特率错误或相机没有响应，
+检查脚本会超时并保存失败原因；依次核对 P4→GPIO16、P5→GPIO15 和 GND。
+
+首次下载本固件会替换 ESP32 上已有程序；16 MiB 原 Flash 已先备份，路径在本机
+`local_backups/esp32_20260926_233213/flash_before_gateway_16MB.bin`。恢复方式：
+
+```powershell
+.\.venv-vision\Scripts\python.exe -m esptool --chip esp32s3 --port COM8 --baud 460800 write_flash 0x0 local_backups/esp32_20260926_233213/flash_before_gateway_16MB.bin
+```
+
+检查通过只能证明 OpenMV→ESP32 UART 上行完整。还要连接 ESP32 创建的 Wi-Fi 热点，
+并连接 `192.168.4.1:5000` 才能验证无线图传；电脑从校园网切换到机器人热点可能会暂时断开互联网。
+
+首次台架检查记录位于本机 `logs/vision/` 下的 `openmv_esp32_usb_check_001.json` 至
+`openmv_esp32_usb_check_004.json`；检查尚未通过，最近一次能读取 OpenMV 固件信息，但 ESP32
+没有返回 USB 状态标记，因此还没有开始 P4/P5/GND 串口探测或图像传输。COM10 和 OPENMV
+盘当前均已恢复在线；先确认 ESP32 应用成功启动，再检查相机收发脚本。
+
 ## Wi-Fi 与电脑接收
 
 ESP32 启动后创建 2.4 GHz Wi-Fi 热点：
