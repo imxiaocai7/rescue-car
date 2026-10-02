@@ -1,5 +1,14 @@
 # 第一阶段软件：相机图像帧协议
 
+## 底盘手动控制与本地模拟
+
+电脑端已增加 [`pc/control_chassis.py`](pc/control_chassis.py) 手动控制界面和
+[`pc/chassis_simulator.py`](pc/chassis_simulator.py) 本机协议模拟器。在仓库根目录运行
+`python software/pc/control_chassis.py --demo`，即可在不连接任何板子的情况下测试
+W/S/A/D 按住运行、松键停止、失焦停止、指令确认与断线锁定。
+使用说明、故障注入及实车使用前置条件见 [`pc/CHASSIS_CONTROL.md`](pc/CHASSIS_CONTROL.md)。
+实车连接必须显式开启，且 STM32 板级固件、驱动电流和停车行为仍未验收；本轮没有烧录或启动电机。
+
 ## 已增加 USB 直连实物入口
 
 OpenMV 现在可以不经过 ESP32，直接用 USB 预览、采集原图和记录测试数据。
@@ -27,7 +36,7 @@ ESP32 向 OpenMV UART3 发送单字节 `R`，OpenMV 才采集并发送一帧。E
 
 电脑端解析器对 TCP 分块、粘包、前导噪声、异常长度和坏 CRC 做了恢复。CRC 使用标准 IEEE CRC-32，与 Python `zlib.crc32` 一致。这里的相机毫秒数尚未与电脑时钟同步，不能直接拿它计算端到端绝对延迟；后续用握手往返和电脑接收时间建立估计。
 
-ESP32-S3 网关代码及连线、构建说明见 [`esp32/README.md`](esp32/README.md)。当前网关按照片中的 ESP32-S3-N16R8 配置，启动 Wi-Fi AP `RescueBot-S3`，TCP 服务为 `192.168.4.1:5000`；不包含 STM32 电机控制。
+ESP32-S3 网关代码及连线、构建说明见 [`esp32/README.md`](esp32/README.md)。当前网关按照片中的 ESP32-S3-N16R8 配置，启动 Wi-Fi AP `RescueBot-S3`，图像 TCP 服务为 `192.168.4.1:5000`；独立运动桥接使用端口 5001，STM32 板级电机固件仍未接入。
 
 TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该帧后再确认。网关收到匹配确认才向 OpenMV 请求下一帧，因而 YOLO 推理速度会自然限制相机输出，降低控制使用陈旧图像的风险。
 

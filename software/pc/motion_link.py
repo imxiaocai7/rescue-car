@@ -63,12 +63,22 @@ class MotionLinkClient:
         self._pending.clear()
         self._socket = connection
 
-    def send_command(self, command: MotionCommand) -> None:
+    def send_command(self, command: MotionCommand, *, timeout_s: float | None = None) -> None:
+        """Optionally bound a send; use one I/O worker when changing timeouts."""
+        if timeout_s is not None and (not math.isfinite(timeout_s) or timeout_s <= 0):
+            raise ValueError("send timeout must be positive and finite")
         frame = encode_motion_command(command)
         connection = self._require_socket()
         try:
             with self._send_lock:
-                connection.sendall(frame)
+                previous_timeout = connection.gettimeout()
+                try:
+                    if timeout_s is not None:
+                        connection.settimeout(timeout_s)
+                    connection.sendall(frame)
+                finally:
+                    if self._socket is connection:
+                        connection.settimeout(previous_timeout)
         except OSError:
             self.close()
             raise
