@@ -85,7 +85,8 @@ python software/pc/control_chassis.py --host 192.168.4.1 --port 5001 --allow-har
 
 外部模式不会自动连接，要点击“连接”；地址应使用 ESP32 实际 IPv4 地址。
 `--allow-hardware` 只是连接开关，不表示安全验收通过。实际轮径测量后再加
-`--wheel-diameter-mm 实测值`。当前还没有 STM32 板级可烧录工程，不能用此程序直接驱动车辆。
+`--wheel-diameter-mm 实测值`。现在已有 [STM32 通信验收工程](../stm32/README.md)，但它始终禁用电机且没有编码器采样，
+本界面应当保持锁定。第二阶段用 [零速通信验收工具](MOTION_COMMISSIONING.md)，仍不能直接驱动车辆。
 图传端口 5000 不受修改；本轮没有改 ESP32 固件或网络配置。
 
 电机 MG513P30_12V 的单个堵转电流为 3.2A；TB6612 的 3.2A 是 10ms 单次脉冲条件，

@@ -7,7 +7,16 @@
 `python software/pc/control_chassis.py --demo`，即可在不连接任何板子的情况下测试
 W/S/A/D 按住运行、松键停止、失焦停止、指令确认与断线锁定。
 使用说明、故障注入及实车使用前置条件见 [`pc/CHASSIS_CONTROL.md`](pc/CHASSIS_CONTROL.md)。
-实车连接必须显式开启，且 STM32 板级固件、驱动电流和停车行为仍未验收；本轮没有烧录或启动电机。
+实车连接必须显式开启，且 STM32 板级固件、驱动电流和停车行为仍未验收；没有烧录或启动电机。
+
+## STM32 第二阶段：可构建的通信验收固件
+
+[`stm32/README.md`](stm32/README.md) 说明 STM32F407VET6 的 PlatformIO/Cube HAL 工程，已真实交叉编译生成
+ELF/BIN/HEX。该目标只接受零速 / HOLD，持续保持 STBY/PWM/方向低电平，不伪造传感器有效状态。
+硬件不在身边，SWD、板子启动、UART、电平和看门狗验收未执行。
+[`pc/probe_motion.py`](pc/probe_motion.py) 是只发零速的电脑诊断工具，默认本机模拟。
+在根目录运行 `python software/pc/probe_motion.py --demo`，操作说明见
+[`pc/MOTION_COMMISSIONING.md`](pc/MOTION_COMMISSIONING.md)。不要用解除第一阶段界面锁定的方式测试本版固件。
 
 ## 已增加 USB 直连实物入口
 
@@ -68,11 +77,11 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 路径速度跟踪见 [`pc/path_follower.py`](pc/path_follower.py)：使用纯追踪把 A* 路径点转换为差速底盘的线速度/角速度，较大航向误差时先原地对准，并将前视目标限制在下一个路径拐点以减小切角；另提供按轮距换算左右轮线速度和共同限幅。`pc/test_navigation_integration.py` 用合成差速运动学验证其能绕开膨胀障碍格。前视距离、速度上限、轮距仍须结合实车标定，仿真不代表实车闭环安全。该模块只产生命令数据，不负责 PWM、电机驱动或 STM32 通信。
 
-电脑规划端到 ESP32-S3/STM32 的速度命令帧和失联租约约定见 [`MOTION_PROTOCOL.md`](MOTION_PROTOCOL.md)，编解码与序号/超时工具见 [`pc/motion_protocol.py`](pc/motion_protocol.py)。这是待固件实现的协议契约，尚未在 ESP32、STM32 实物上联调。
+电脑规划端到 ESP32-S3/STM32 的速度命令帧和失联租约约定见 [`MOTION_PROTOCOL.md`](MOTION_PROTOCOL.md)，编解码与序号/超时工具见 [`pc/motion_protocol.py`](pc/motion_protocol.py)。通信验收固件已实现零速子集，完整运动目标仍未接入，尚未在 ESP32、STM32 实物上联调。
 
-运动链路回传部分已补上：[`pc/rover_telemetry.py`](pc/rover_telemetry.py) 定义 `RST1` 遥测帧和 TCP 分片解码， [`pc/motion_link.py`](pc/motion_link.py) 提供电脑连接 ESP32 端口 5001、发送 `RCM1` 速度帧并接收 STM32 遥测的客户端；STM32 侧编码器在 [`stm32/src/rover_telemetry.c`](stm32/src/rover_telemetry.c)。ESP32 通过独立 FreeRTOS 任务在 TCP 5001 与 UART2 间双向透传，避免阻塞相机端口 5000。UART GPIO 17/18 与 STM32 USART2 PA2/PA3 仅是待核对的候选线序，当前没有 STM32 HAL 采样/发送任务，命令帧也尚未上实物链路。
+运动链路回传部分已补上：[`pc/rover_telemetry.py`](pc/rover_telemetry.py) 定义 `RST1` 遥测帧和 TCP 分片解码， [`pc/motion_link.py`](pc/motion_link.py) 提供电脑连接 ESP32 端口 5001、发送 `RCM1` 速度帧并接收 STM32 遥测的客户端；STM32 侧帧编码器在 [`stm32/src/rover_telemetry.c`](stm32/src/rover_telemetry.c)。ESP32 通过独立 FreeRTOS 任务在 TCP 5001 与 UART2 间双向透传，避免阻塞相机端口 5000。通信验收目标现已配置 STM32 USART2 PA2/PA3 HAL 中断收发，与 ESP32 GPIO18/17 交叉连接；未接入传感器采样，命令帧也尚未上实物链路。
 
-STM32 可复用的 HAL 无关 C 解码器和序号/租约命令门控位于 [`stm32/include/motion_protocol.h`](stm32/include/motion_protocol.h)、[`stm32/src/motion_protocol.c`](stm32/src/motion_protocol.c) 与 [`stm32/include/motion_command_guard.h`](stm32/include/motion_command_guard.h)、[`stm32/src/motion_command_guard.c`](stm32/src/motion_command_guard.c)。在仓库根目录可用 `gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/motion_command_guard.c software/tests/motion_protocol_test.c -o "$env:TEMP\motion_protocol_test.exe"; & "$env:TEMP\motion_protocol_test.exe"` 做本机编译测试。租约超时门控输出零轮速与 HOLD；实际 UART、PWM、编码器和舵机 HAL 外设仍未接入。
+STM32 可复用的 HAL 无关 C 解码器和序号/租约命令门控位于 [`stm32/include/motion_protocol.h`](stm32/include/motion_protocol.h)、[`stm32/src/motion_protocol.c`](stm32/src/motion_protocol.c) 与 [`stm32/include/motion_command_guard.h`](stm32/include/motion_command_guard.h)、[`stm32/src/motion_command_guard.c`](stm32/src/motion_command_guard.c)。在仓库根目录可用 `gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/motion_command_guard.c software/tests/motion_protocol_test.c -o "$env:TEMP\motion_protocol_test.exe"; & "$env:TEMP\motion_protocol_test.exe"` 做本机编译测试。租约超时门控输出零轮速与 HOLD；通信验收目标已接入 UART HAL 中断收发，PWM、编码器和舵机 HAL 外设仍未接入。
 
 STM32 上层应用胶水已补入 [`stm32/include/rover_application.h`](stm32/include/rover_application.h) 与 [`stm32/src/rover_application.c`](stm32/src/rover_application.c)：主任务把 UART 收到的字节交给命令解码器，再按固定周期传入编码器速度/累计计数、IMU、双 ToF、电池和急停采样；模块调用轮速控制器并返回带 RST1 遥测的结构化输出。急停、编码器无效、采样周期无效、控制器故障或租约到期时会清零轮速并清除活动命令租约，但保留序号防重放，恢复运动必须收到更新的命令。HAL 初始化、DMA/定时器配置和 GPIO/PWM 实际写入仍须接进 CubeMX 主工程；候选针脚及 TB6612 电流风险见 [`stm32/BOARD_INTEGRATION.md`](stm32/BOARD_INTEGRATION.md)。
 
