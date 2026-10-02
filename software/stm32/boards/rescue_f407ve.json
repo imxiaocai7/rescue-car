@@ -1,0 +1,27 @@
+{
+  "build": {
+    "cpu": "cortex-m4",
+    "extra_flags": "-DSTM32F407xx",
+    "f_cpu": "16000000L",
+    "mcu": "stm32f407vet6",
+    "product_line": "STM32F407xx",
+    "stm32cube": {
+      "custom_config_header": "yes"
+    }
+  },
+  "debug": {
+    "default_tools": ["stlink"],
+    "openocd_target": "stm32f4x",
+    "svd_path": "STM32F40x.svd"
+  },
+  "frameworks": ["stm32cube"],
+  "name": "Rescue STM32F407VET6 communication-only (HSI 16MHz)",
+  "upload": {
+    "maximum_ram_size": 131072,
+    "maximum_size": 524288,
+    "protocol": "stlink",
+    "protocols": ["stlink"]
+  },
+  "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32f407ve.html",
+  "vendor": "Project-specific JL_32_F4VE integration"
+}

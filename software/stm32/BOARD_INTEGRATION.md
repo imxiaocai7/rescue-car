@@ -1,6 +1,6 @@
 # STM32F407VE board integration proposal
 
-The supplied board schematic exposes the STM32F407VET6 GPIO on 2.54 mm headers, but the repository does not contain a CubeMX project or generated HAL startup code. The mapping below is a proposed pin allocation for that board, not a claim that it has been wired or electrically validated. The MCU alternate functions are cross-checked against the [ST STM32F407VE datasheet](https://www.st.com.cn/resource/en/datasheet/stm32f407ve.pdf); check the physical header silkscreen before wiring.
+The supplied board schematic exposes the STM32F407VET6 GPIO on 2.54 mm headers. A buildable, communication-only PlatformIO/Cube HAL target now exists; see [README.md](README.md). It permanently disables motor outputs and does not sample encoders or drive motors. The mapping below remains a pin allocation, not a claim of wiring/electrical validation. The MCU alternate functions are cross-checked against the [ST STM32F407VE datasheet](https://www.st.com.cn/resource/en/datasheet/stm32f407ve.pdf); check the physical header silkscreen before wiring.
 
 | Function | Candidate pin / peripheral | Notes |
 |---|---|---|
@@ -18,23 +18,14 @@ The supplied board schematic exposes the STM32F407VET6 GPIO on 2.54 mm headers, 
 
 ## TB6612 module connector labels
 
-The supplied TB6612 schematic shows two 1×8 headers. Use the pin-1 marking on the physical board to confirm orientation before connecting:
+Use the actual module's signal names, NOT the older schematic's H1 pin numbers: its AIN1/AIN2 ordering differs from the supplied module photo. With the photo upright, left to right:
 
-| H1 pin | Signal | H1 pin | Signal |
-|---:|---|---:|---|
-| 1 | GND | 5 | STBY |
-| 2 | PWMB | 6 | AIN2 |
-| 3 | BIN2 | 7 | AIN1 |
-| 4 | BIN1 | 8 | PWMA |
+| Row | Signals |
+|---|---|
+| Top | GND, PWMB, BIN2, BIN1, STBY, AIN1, AIN2, PWMA |
+| Bottom | GND, BO1, BO2, AO2, AO1, GND, VCC, VM |
 
-| H2 pin | Signal | H2 pin | Signal |
-|---:|---|---:|---|
-| 1 | GND | 5 | AO1 |
-| 2 | BO1 | 6 | GND |
-| 3 | BO2 | 7 | VCC (logic supply) |
-| 4 | AO2 | 8 | VM (motor supply) |
-
-For a nominal 12 V pack, VM is the motor supply and VCC is the 3.3 V logic supply; connect grounds as required by the driver design, and do not feed 12 V into STM32/ESP32/OpenMV GPIO or the servo. The STM32 board schematic itself recommends isolation for motor/high-interference loads. The TB6612 breakout has no galvanic isolation, so keep motor-current return paths away from logic/sensor grounds and add the protection/isolation required by the board maker before vehicle-power tests.
+VM is the motor supply, while VCC should be the 3.3 V logic supply for STM32 logic compatibility. A nominal "12 V" label does not establish safe VM: verify the battery's full-charge voltage against the 2.5-13.5 V operating range. Connect grounds as required by the driver design; never feed motor voltage into MCU GPIO or the servo. The STM32 schematic recommends isolation for motor/high-interference loads. The breakout has no galvanic isolation: keep motor-current return paths away from logic/sensor grounds and add the required protection before vehicle-power tests.
 
 ## Confirmed motor and range-sensor profile
 
@@ -44,6 +35,6 @@ The two range modules are `MINIF/DVP0501C1` TinyF units. Power each from 5 V and
 
 ## Driver-current warning
 
-The MG513P30_12V manual confirms 0.36 A rated current and 3.2 A stall current per motor. Toshiba's [TB6612FNG datasheet](https://toshiba.semiconductor.com/info/TB6612FNG_datasheet_en_20141001.pdf?did=10660&prodName=TB6612FNG) lists 1.2 A average and 3.2 A peak output current. Thus a single motor's stall current already equals the IC's peak rating, while its continuous rating is lower; two jammed motors are not a safe operating case. A software duty cap is not a substitute for current limiting because PWM pulses can still reach stall current. Before powered drive tests, measure real motor current on a current-limited supply and strongly consider a driver with suitable continuous current and hardware current protection.
+The MG513P30_12V manual confirms 0.36 A rated current and 3.2 A stall current per motor. The supplied Toshiba TB6612FNG datasheet (2012-11-01) specifies 1.2 A average absolute maximum and 3.2 A only for a 10 ms SINGLE pulse (2 A repeated pulses: 20 ms, duty <=20%). These are not a continuous 3.2 A rating. Two jammed motors are not a safe operating case. A software duty cap is not current limiting because PWM pulses can still reach stall current. Before powered tests, measure actual current on a current-limited supply and consider a suitably rated, hardware-current-protected driver.
 
 The MCU application core in [`include/rover_application.h`](include/rover_application.h) and [`src/rover_application.c`](src/rover_application.c) consumes sampled values and emits signed PWM requests, actuator commands, and RST1 telemetry. It does not configure the listed timers/UART/I2C/ADC or drive pins; that remains the board-specific HAL adapter. Never test with the wheels touching the floor until the motor-driver rating, stop behavior, and wheel direction have been verified.
