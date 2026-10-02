@@ -1,5 +1,7 @@
 #include "rover_application.h"
 
+#include "rover_hardware_profile.h"
+
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
@@ -137,13 +139,15 @@ bool rover_application_step(
     if (sample->gyro_valid) {
         telemetry.status_flags |= ROVER_TELEMETRY_GYRO_VALID;
     }
-    if (sample->tof_left_valid && sample->tof_left_mm >= 20U
-        && sample->tof_left_mm <= 4000U) {
+    if (sample->tof_left_valid
+        && sample->tof_left_mm >= ROVER_TINYF_MIN_RANGE_MM
+        && sample->tof_left_mm <= ROVER_TINYF_MAX_RANGE_MM) {
         telemetry.tof_left_mm = sample->tof_left_mm;
         telemetry.status_flags |= ROVER_TELEMETRY_TOF_LEFT_VALID;
     }
-    if (sample->tof_right_valid && sample->tof_right_mm >= 20U
-        && sample->tof_right_mm <= 4000U) {
+    if (sample->tof_right_valid
+        && sample->tof_right_mm >= ROVER_TINYF_MIN_RANGE_MM
+        && sample->tof_right_mm <= ROVER_TINYF_MAX_RANGE_MM) {
         telemetry.tof_right_mm = sample->tof_right_mm;
         telemetry.status_flags |= ROVER_TELEMETRY_TOF_RIGHT_VALID;
     }

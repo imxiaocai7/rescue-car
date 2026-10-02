@@ -55,7 +55,7 @@ TCP 每帧后电脑要回发 `ACK1 + 帧序号(u32小端)`，并在处理完该�
 
 将目标合法性和路线可达性联合排序的离线决策入口见 [`pc/autonomous_planner.py`](pc/autonomous_planner.py)。目前规划到目标所在栅格中心；真实收集还需要按 CAD 几何确定接近点/朝向，并将检测目标可靠投影到地图。
 
-差速轮编码器里程计与陀螺融合见 [`pc/odometry.py`](pc/odometry.py)：支持计数器回绕、静止陀螺零偏均值估计和中点积分；陀螺样本无效时可仅使用轮编码器估计航向。遥测适配层见 [`pc/telemetry_odometry.py`](pc/telemetry_odometry.py)，负责丢弃重复/乱序帧、处理 STM32 毫秒计时和有符号累计计数回绕、检查轮速异常并对长时间断流要求重新定位；位姿还会按电脑接收时间超时失效。启动位姿必须由已知起点给定，发生无法解释的位移后须通过可靠场地定位调用 `reset_to_pose()`，不会仅凭恢复通信就假定位置正确。有效轮半径、轮距、每轮计数/转、编码器正方向、陀螺轴向和零偏、最大速度及初始场地位姿仍需实测/标定；该链路提供短时里程计，不等于全局定位。
+差速轮编码器里程计与陀螺融合见 [`pc/odometry.py`](pc/odometry.py)：支持计数器回绕、静止陀螺零偏均值估计和中点积分；陀螺样本无效时可仅使用轮编码器估计航向。遥测适配层见 [`pc/telemetry_odometry.py`](pc/telemetry_odometry.py)，负责丢弃重复/乱序帧、处理 STM32 毫秒计时和有符号累计计数回绕、检查轮速异常并对长时间断流要求重新定位；位姿还会按电脑接收时间超时失效。启动位姿必须由已知起点给定，发生无法解释的位移后须通过可靠场地定位调用 `reset_to_pose()`，不会仅凭恢复通信就假定位置正确。MG513P30 霍尔编码器在 STM32 AB 四边沿计数时采用 1560 counts/输出轴圈；装车后仍要用整圈手转验证。有效轮半径、轮距、编码器正方向、陀螺轴向和零偏、最大速度及初始场地位姿仍需实测/标定；该链路提供短时里程计，不等于全局定位。
 
 路径速度跟踪见 [`pc/path_follower.py`](pc/path_follower.py)：使用纯追踪把 A* 路径点转换为差速底盘的线速度/角速度，较大航向误差时先原地对准，并将前视目标限制在下一个路径拐点以减小切角；另提供按轮距换算左右轮线速度和共同限幅。`pc/test_navigation_integration.py` 用合成差速运动学验证其能绕开膨胀障碍格。前视距离、速度上限、轮距仍须结合实车标定，仿真不代表实车闭环安全。该模块只产生命令数据，不负责 PWM、电机驱动或 STM32 通信。
 
@@ -71,7 +71,7 @@ HAL 无关的轮速 PI 控制内核位于 [`stm32/include/wheel_speed_controller
 
 双轮命令到控制输出的 HAL 无关协调层位于 [`stm32/include/motion_control.h`](stm32/include/motion_control.h) 和 [`stm32/src/motion_control.c`](stm32/src/motion_control.c)。它串起命令新鲜度/序号检查与双轮 PI 输出；主机测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/motion_command_guard.c software/stm32/src/wheel_speed_controller.c software/stm32/src/motion_control.c software/tests/motion_control_test.c -lm -o "$env:TEMP\motion_control_test.exe"; & "$env:TEMP\motion_control_test.exe"`。此输出仍只是数值接口，不代表引脚、TB6612 电流余量或真实电机动态已验证。
 
-霍尔编码器计数到有符号轮速估计器位于 [`stm32/include/encoder_speed_estimator.h`](stm32/include/encoder_speed_estimator.h) 和 [`stm32/src/encoder_speed_estimator.c`](stm32/src/encoder_speed_estimator.c)。`counts_per_wheel_revolution`、计数器模数、轮半径和最高速度都需按实际定时器解码方式配置；主机测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/encoder_speed_estimator.c software/tests/encoder_speed_estimator_test.c -lm -o "$env:TEMP\encoder_speed_estimator_test.exe"; & "$env:TEMP\encoder_speed_estimator_test.exe"`。
+霍尔编码器计数到有符号轮速估计器位于 [`stm32/include/encoder_speed_estimator.h`](stm32/include/encoder_speed_estimator.h) 和 [`stm32/src/encoder_speed_estimator.c`](stm32/src/encoder_speed_estimator.c)。已确认的 MG513P30、TinyF 电气和协议常量集中在 [`stm32/include/rover_hardware_profile.h`](stm32/include/rover_hardware_profile.h)：编码器默认 1560 counts/输出轴圈，TinyF 有效范围 20–4500 mm、默认 115200/30 Hz。轮半径、计数方向和最高安全速度仍需实车标定。编码器测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/encoder_speed_estimator.c software/tests/encoder_speed_estimator_test.c -lm -o "$env:TEMP\encoder_speed_estimator_test.exe"; & "$env:TEMP\encoder_speed_estimator_test.exe"`。硬件参数边界测试命令：`gcc -std=c11 -Wall -Wextra -Werror -pedantic -I software/stm32/include software/stm32/src/motion_protocol.c software/stm32/src/rover_telemetry.c software/tests/rover_hardware_profile_test.c -o "$env:TEMP\rover_hardware_profile_test.exe"; & "$env:TEMP\rover_hardware_profile_test.exe"`。
 
 像素检测框投影到机器人地面坐标见 [`pc/pixel_ground.py`](pc/pixel_ground.py)：四个地面标定点求平面单应矩阵，检测框底边中心作为落地点，再按差速里程计位姿变换到场地坐标。标定坐标按机器人 x 前、y 左、角度逆时针；相机必须固定，标定点和被投影点需在同一平面。四点投影只是几何初值，镜头畸变和安装变化需靠实测验证，未标定前不可用于自主运动。
 

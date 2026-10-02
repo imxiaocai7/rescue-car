@@ -1,6 +1,7 @@
 #include "rover_telemetry.h"
 
 #include "motion_protocol.h"
+#include "rover_hardware_profile.h"
 
 #include <string.h>
 
@@ -33,14 +34,16 @@ static bool telemetry_is_valid(const rover_telemetry_t *telemetry) {
         return false;
     }
     if (left_tof_valid) {
-        if (telemetry->tof_left_mm < 20U || telemetry->tof_left_mm > 4000U) {
+        if (telemetry->tof_left_mm < ROVER_TINYF_MIN_RANGE_MM
+            || telemetry->tof_left_mm > ROVER_TINYF_MAX_RANGE_MM) {
             return false;
         }
     } else if (telemetry->tof_left_mm != ROVER_TELEMETRY_INVALID_RANGE_MM) {
         return false;
     }
     if (right_tof_valid) {
-        if (telemetry->tof_right_mm < 20U || telemetry->tof_right_mm > 4000U) {
+        if (telemetry->tof_right_mm < ROVER_TINYF_MIN_RANGE_MM
+            || telemetry->tof_right_mm > ROVER_TINYF_MAX_RANGE_MM) {
             return false;
         }
     } else if (telemetry->tof_right_mm != ROVER_TELEMETRY_INVALID_RANGE_MM) {
