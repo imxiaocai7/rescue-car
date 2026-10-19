@@ -7,16 +7,31 @@ tmp/
 # Python bytecode
 **/__pycache__/
 *.py[cod]
+.pytest_cache/
 .pio/
 .venv-vision/
+.venv/
 local_backups/
 dataset/camera_raw/
 logs/vision/
+
+# Local credentials; example configuration may be shared
+.env
+.env.*
+!.env.example
 
 # Rescue vision datasets, trained weights, and generated run artifacts
 dataset/rescue/
 runs/rescue/
 runs/rescue_eval/
+
+# Generated presentation previews
+ppt_preview_05_08/
+
+# Vendor material: share reference PDFs, keep archives, tools and examples local
+/资料/**/*
+!/资料/**/
+!/资料/**/*.pdf
 
 # Supplied open-source reference snapshot: keep locally, track project-specific work separately
 开源参考方案/
