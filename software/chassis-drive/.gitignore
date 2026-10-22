@@ -1,0 +1,10 @@
+.venv/
+.pio/
+__pycache__/
+*.pyc
+backups/
+logs/
+.vscode/
+*.elf
+*.bin
+*.hex

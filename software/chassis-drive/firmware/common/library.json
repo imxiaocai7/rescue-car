@@ -1,0 +1,5 @@
+{
+  "name": "ChassisDiagnosticProtocol",
+  "version": "1.0.0",
+  "description": "Chassis diagnostic and motion protocols, STM32 control core and ESP32 bridge policy"
+}

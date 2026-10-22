@@ -1,0 +1,24 @@
+{
+  "build": {
+    "cpu": "cortex-m4",
+    "extra_flags": "-DSTM32F407xx",
+    "f_cpu": "16000000L",
+    "mcu": "stm32f407vet6",
+    "product_line": "STM32F407xx"
+  },
+  "debug": {
+    "jlink_device": "STM32F407VE",
+    "openocd_target": "stm32f4x",
+    "svd_path": "STM32F40x.svd"
+  },
+  "frameworks": ["stm32cube"],
+  "name": "Chassis F407VE HSI UART-only",
+  "upload": {
+    "maximum_ram_size": 131072,
+    "maximum_size": 524288,
+    "protocol": "stlink",
+    "protocols": ["stlink"]
+  },
+  "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32f407ve.html",
+  "vendor": "ST"
+}
